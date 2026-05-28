@@ -1,4 +1,4 @@
-# ПЗ №4. Prometheus + Grafana — отчёт
+# ПЗ №4. Prometheus + Grafana
 
 **Студент:** Дорджиев Виктор, ЭФМО-02-25
 
@@ -34,20 +34,10 @@
 
 ## 2. Пример вывода `/metrics`
 
-Ниже — фрагмент после небольшой нагрузки (10 успешных `GET /v1/tasks`, 5 с неверным токеном, 1 `POST /v1/tasks`, 1 `GET /v1/tasks/:id`). Полный сэмпл сохранён в [pz4_metrics_sample.txt](pz4_metrics_sample.txt).
+Ниже — фрагмент после небольшой нагрузки (50 успешных `GET /v1/tasks`, 20 с неверным токеном, 1 `POST /v1/tasks`, 1 `GET /v1/tasks/:id`).
 
-```
-http_in_flight_requests{service="tasks"} 1
-http_requests_total{method="GET",route="/v1/tasks",service="tasks",status="200"} 10
-http_requests_total{method="GET",route="/v1/tasks",service="tasks",status="401"} 5
-http_requests_total{method="GET",route="/v1/tasks/:id",service="tasks",status="200"} 1
-http_requests_total{method="POST",route="/v1/tasks",service="tasks",status="201"} 1
-http_request_duration_seconds_bucket{method="GET",route="/v1/tasks",service="tasks",le="0.01"} 15
-http_request_duration_seconds_bucket{method="GET",route="/v1/tasks",service="tasks",le="0.05"} 15
-http_request_duration_seconds_bucket{method="GET",route="/v1/tasks",service="tasks",le="+Inf"} 15
-http_request_duration_seconds_sum{method="GET",route="/v1/tasks",service="tasks"} 0.01983
-http_request_duration_seconds_count{method="GET",route="/v1/tasks",service="tasks"} 15
-```
+<img width="1280" height="856" alt="image" src="https://github.com/user-attachments/assets/41a42101-2f78-4632-ac20-9c16b4ec6e87" />
+
 
 Route `/v1/tasks/:id` корректно «схлопывает» конкретные ID — значит, middleware-классификатор работает.
 
@@ -101,23 +91,16 @@ scrape_configs:
 
 Дашборд содержит 4 панели (три обязательные + бонусный gauge):
 
+<img width="2611" height="1220" alt="image" src="https://github.com/user-attachments/assets/23d1e9ae-98ee-49c5-9c86-7f085d0b9eb5" />
+
+
 1. **RPS по маршрутам**
-   ```promql
-   sum by (route) (rate(http_requests_total{service="tasks"}[1m]))
-   ```
    — видно трафик отдельно на `/v1/tasks`, `/v1/tasks/:id`, `/metrics`. При прогоне нагрузочного цикла (50 запросов списком) линия `/v1/tasks` резко поднималась, остальные оставались плоскими.
 
 2. **Ошибки (4xx/5xx)**
-   ```promql
-   sum by (status) (rate(http_requests_total{service="tasks",status=~"4..|5.."}[1m]))
-   ```
    — после прогонов с заголовком `Authorization: Bearer wrong` на графике отдельной линией появляется `401`.
 
 3. **Latency p95 по маршрутам**
-   ```promql
-   histogram_quantile(0.95,
-     sum by (le, route) (rate(http_request_duration_seconds_bucket{service="tasks"}[5m])))
-   ```
    — 95-й перцентиль длительности. На нашем учебном сервисе укладывается в первый bucket (<10 мс), поэтому линия стабильно около нуля — это ожидаемо, т.к. `tasks` работает с in-memory хранилищем.
 
 4. **Активные запросы (in-flight)** — stat-панель по `http_in_flight_requests{service="tasks"}`. Во время прогона нагрузочного `for`-цикла gauge кратковременно поднимался до 1–2 и возвращался в 0.
